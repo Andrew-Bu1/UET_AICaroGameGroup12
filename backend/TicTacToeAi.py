@@ -20,9 +20,37 @@ class TicTacToeAi:
         else:
             self.opponentRole = 'x'
 
-    def get_move(self, board):
+    # def get_move(self, board):
+    #     self.board = board
+    #     self.size = len(board)
+
+    #     win = self.evaluate()
+    #     if abs(win) == const.WIN_SCORE:
+    #         return None
+    #     res = self.search_best_move()
+
+    def get_move(self, board) -> tuple[int, int]:
+        bestMove = [-1, -1]
+        bestVal = const.MIN_VALUE
         self.board = board
         self.size = len(board)
+
+        for i in range(self.size):
+            for j in range(self.size):
+                if self.board[i][j] == ' ':
+                    self.board[i][j] = self.playerRole
+
+                    moveScore = self.minimax(
+                        0, False, const.MIN_VALUE, const.MAX_VALUE)
+
+                    self.board[i][j] = ' '
+
+                    if moveScore > bestVal:
+                        bestMove[0] = i
+                        bestMove[1] = j
+                        bestVal = moveScore
+
+        return bestMove
 
     def evaluate(self) -> int:
         score = 0
@@ -102,21 +130,44 @@ class TicTacToeAi:
                     elif opponent_cnt > 0:
                         score -= pow(10, opponent_cnt - 1)
                 queue.pop(0)
-                # temp = queue.pop(0)
-                # if temp == self.playerRole:
-                #     player_cnt -= 1
-                # elif temp == self.opponentRole:
-                #     opponent_cnt -= 1
 
         return score
 
-    def minimax(self, depth, alpha: float, beta: float):
-        score: int
-        bestRow = -1
-        bestCol = -1
+    def minimax(self, depth, isMax: bool, alpha: int, beta: int) -> int:
+        score = self.evaluate()
 
-        if (depth == 0):
-            score = self.evaluate()
+        if depth == 5 or score == const.PLAYER_WIN_SCORE:
+            return score
+
+        if score == const.OPPONENT_WIN_SCORE:
+            return score
+
+        if isMax:
+            best = const.MIN_VALUE
+
+            for i in range(self.size):
+                for j in range(self.size):
+                    if self.board[i][j] == ' ':
+                        self.board[i][j] = self.playerRole
+                        best = max(best, self.minimax(
+                            depth + 1, not isMax, alpha, beta)) - depth * 5
+                        self.board[i][j] = ' '
+                        if best > beta:
+                            break
+
+            return best
         else:
-            return
-        return
+            best = const.MAX_VALUE
+
+            for i in range(self.size):
+                for j in range(self.size):
+                    if self.board[i][j] == ' ':
+                        self.board[i][j] = self.opponentRole
+                        best = min(best, self.minimax(
+                            depth+1, not isMax, alpha, beta)) + depth * 5
+                        self.board[i][j] = ' '
+                        beta = min(beta, best)
+                        if best < alpha:
+                            break
+
+            return best
