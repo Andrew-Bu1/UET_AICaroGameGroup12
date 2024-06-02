@@ -1,3 +1,4 @@
+import logging
 from flask_cors import CORS, cross_origin
 from flask import Flask, request, jsonify, make_response
 # from flask_socketio import SocketIO
@@ -25,7 +26,6 @@ dictConfig({
     }
 })
 
-import logging
 
 app = Flask(__name__)
 cors = CORS(app)
@@ -79,7 +79,8 @@ def get_data():
         team2_id_full = team2_id + "+" + team2_role
         room_by_teams[team1_id] = room_id
         room_by_teams[team2_id] = room_id
-        board_game = BoardGame(size, BOARD, room_id, match_id, team1_id_full, team2_id_full)
+        board_game = BoardGame(size, BOARD, room_id,
+                               match_id, team1_id_full, team2_id_full)
         rooms[room_id] = board_game
         is_init = True
 
@@ -193,4 +194,4 @@ def handle_move():
 
 
 if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0", port=PORT)
+    app.run(debug=False, host="127.0.0.0", port=PORT)

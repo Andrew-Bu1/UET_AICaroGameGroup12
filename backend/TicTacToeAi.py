@@ -1,7 +1,8 @@
-import copy
-import random
+import time
+import numpy as np
 import constant as const
-
+from evaluator import evaluate
+from OpeningMoves import first_move
 
 class TicTacToeAi:
     def __init__(self, role) -> None:
@@ -12,162 +13,115 @@ class TicTacToeAi:
         self.size = 0
         self.board = list[list[str]]
         self.max_connect = const.MAX_CONNECT
+        self.first_move = True
+        self.move_left = []
+        self.transposition_table = {}
+        self.zobrist_table = np.random.randint(2**64, size=(15, 15, 2), dtype=np.uint64)
+        self.hash = np.uint64(0)
+         
 
         self.playerRole = role
-
-        if self.playerRole == 'x':
-            self.opponentRole = 'o'
+        if self.playerRole == const.X_CELL:
+            self.opponentRole = const.O_CELL
         else:
-            self.opponentRole = 'x'
+            self.opponentRole = const.X_CELL
 
-    # def get_move(self, board):
-    #     self.board = board
-    #     self.size = len(board)
-
-    #     win = self.evaluate()
-    #     if abs(win) == const.WIN_SCORE:
-    #         return None
-    #     res = self.search_best_move()
+    def set_first_move(self):
+        self.first_move = False
+    
+    def update_zobrist_hash(self, move, number):
+            self.hash ^= np.uint64(self.zobrist_table[move[0]][move[1]][number])
+    
+    def make_move(self, move, cell):
+        self.board[move[0]][move[1]] = cell
+        temp = 0 if cell == self.playerRole else 1
+        self.update_zobrist_hash(move, temp)
+        self.move_left.remove(move)
+        
+    def unmake_move(self, move, cell):
+        self.board[move[0]][move[1]] = const.EMPTY_CELL
+        temp = 0 if cell == self.playerRole else 1
+        self.update_zobrist_hash(move, temp)
+        self.move_left.append(move)
+        
+    
+    def generate_moves(self):
+        self.move_left = [
+            [i, j] for i in range(self.size) for j in range(self.size) if self.board[i][j] == const.EMPTY_CELL
+        ]
 
     def get_move(self, board) -> tuple[int, int]:
-        bestMove = [-1, -1]
-        bestVal = const.MIN_VALUE
-        self.board = board
-        self.size = len(board)
-
-        for i in range(self.size):
-            for j in range(self.size):
-                if self.board[i][j] == ' ':
-                    self.board[i][j] = self.playerRole
-
-                    moveScore = self.minimax(
-                        0, False, const.MIN_VALUE, const.MAX_VALUE)
-
-                    self.board[i][j] = ' '
-
-                    if moveScore > bestVal:
-                        bestMove[0] = i
-                        bestMove[1] = j
-                        bestVal = moveScore
-
-        return bestMove
-
-    def evaluate(self) -> int:
-        score = 0
-
-        # Check Rows
-        for i in range(self.size):
-            temp = self.evaluate_line([self.board[i][j]
-                                      for j in range(self.size)])
-            if (abs(temp) == const.WIN_SCORE):
-                return temp
-            score += temp
-
-        # Check Columns
-        for j in range(self.size):
-            temp = self.evaluate_line([self.board[i][j]
-                                      for i in range(self.size)])
-            if (abs(temp) == const.WIN_SCORE):
-                return temp
-            score += temp
-
-        # Check Diagonal from left to right and from the top to the bottom
-        for i in range(1, self.size - self.max_connect + 1):
-            temp = self.evaluate_line([self.board[i + j][j]
-                                      for j in range(self.size - i)])
-            if (abs(temp) == const.WIN_SCORE):
-                return temp
-            score += temp
-
-        for i in range(self.size - self.max_connect + 1):
-            temp = self.evaluate_line([self.board[j][i + j]
-                                      for j in range(self.size - i)])
-            if (abs(temp) == const.WIN_SCORE):
-                return temp
-            score += temp
-
-        # Check Diagonal from left to right and bottom to the top
-        for i in range(1, self.size - self.max_connect + 1):
-            temp = self.evaluate_line(
-                [self.board[self.size - (i + j + 1)][j]] for j in range(self.size - i))
-            if (abs(temp) == const.WIN_SCORE):
-                return temp
-            score += temp
-
-        for i in range(self.size - self.max_connect + 1):
-            temp = self.evaluate_line([self.board[self.size - j - 1][i + j]
-                                      for j in range(self.size - i)])
-            if (abs(temp) == const.WIN_SCORE):
-                return temp
-            score += temp
-
-        return score
-
-    def evaluate_line(self, line) -> int:
-        score = 0
-        queue = []
-        player_cnt, opponent_cnt = 0, 0
-
-        for element in line:
-            queue.append(element)
-            if element == self.playerRole:
-                player_cnt += 1
-                if opponent_cnt > 0:
-                    opponent_cnt = 0
-            if element == self.opponentRole:
-                opponent_cnt += 1
-                if player_cnt > 0:
-                    player_cnt = 0
-
-            if len(queue) == self.max_connect:
-                if player_cnt == self.max_connect:
-                    return const.PLAYER_WIN_SCORE
-                elif opponent_cnt == self.max_connect:
-                    return const.OPPONENT_WIN_SCORE
-                else:
-                    if player_cnt > 0:
-                        score += pow(10, player_cnt - 1)
-                    elif opponent_cnt > 0:
-                        score -= pow(10, opponent_cnt - 1)
-                queue.pop(0)
-
-        return score
-
-    def minimax(self, depth, isMax: bool, alpha: int, beta: int) -> int:
-        score = self.evaluate()
-
-        if depth == 5 or score == const.PLAYER_WIN_SCORE:
-            return score
-
-        if score == const.OPPONENT_WIN_SCORE:
-            return score
-
-        if isMax:
-            best = const.MIN_VALUE
-
-            for i in range(self.size):
-                for j in range(self.size):
-                    if self.board[i][j] == ' ':
-                        self.board[i][j] = self.playerRole
-                        best = max(best, self.minimax(
-                            depth + 1, not isMax, alpha, beta)) - depth * 5
-                        self.board[i][j] = ' '
-                        if best > beta:
-                            break
-
-            return best
+        if self.first_move:
+            self.first_move = False
+            return first_move(board, self.playerRole)
         else:
-            best = const.MAX_VALUE
+            bestMove = [-1, -1]
+            self.board = board
+            self.size = len(board)
+        
+            bestVal = const.MIN_VALUE
+            beta = const.MIN_VALUE
+            self.generate_moves()
 
-            for i in range(self.size):
-                for j in range(self.size):
-                    if self.board[i][j] == ' ':
-                        self.board[i][j] = self.opponentRole
-                        best = min(best, self.minimax(
-                            depth+1, not isMax, alpha, beta)) + depth * 5
-                        self.board[i][j] = ' '
-                        beta = min(beta, best)
-                        if best < alpha:
-                            break
+            for move in self.move_left:
+                self.make_move(move, self.playerRole)
+                moveScore = self.min_search(
+                    bestVal, beta, depth=0)
 
-            return best
+                self.unmake_move(move, self.playerRole)
+
+                if moveScore > bestVal:
+                    bestMove = [move[0], move[1]]
+                    bestVal = moveScore
+
+            return bestMove
+
+
+    def min_search(self, alpha, beta, depth) -> int:
+        if self.hash in self.transposition_table:
+            return self.transposition_table[self.hash]
+            
+        score = evaluate(self.board, self.playerRole)
+    
+        if (depth == const.MAX_DEPTH or score == const.PLAYER_WIN_SCORE or score == const.OPPONENT_WIN_SCORE):
+            return score
+        
+        val = const.MAX_VALUE
+
+        for move in self.move_left:
+            self.make_move(move, self.opponentRole)
+            val = min(val, self.max_search(alpha, beta, depth + 1))
+            
+            self.unmake_move(move, self.opponentRole)
+            if val <= alpha:
+                return val
+            beta = min(beta, val)
+            self.transposition_table[self.hash] = val
+        return val
+    
+    def max_search(self, alpha, beta, depth) -> int:
+        if self.hash in self.transposition_table:
+            return self.transposition_table[self.hash]
+
+        score = evaluate(self.board, self.playerRole)
+    
+        if (depth == const.MAX_DEPTH or score == const.PLAYER_WIN_SCORE or score == const.OPPONENT_WIN_SCORE):
+            return score
+    
+        val = const.MIN_VALUE
+        
+        for move in self.move_left:
+            i, j = move
+            self.board[i][j] = self.playerRole
+            self.move_left.remove(move)
+            val = max(val, self.min_search(alpha, beta, depth + 1))
+            
+            self.board[i][j] = const.EMPTY_CELL
+            self.move_left.append(move)
+            if val >= beta:
+                return val
+            alpha = max(alpha, val)
+            self.transposition_table[self.hash] = val
+        return val
+    
+    

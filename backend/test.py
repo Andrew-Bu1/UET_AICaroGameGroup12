@@ -1,232 +1,120 @@
-# def get_diagonals(matrix, length):
-#     """
-#     Get all the diagonals of a matrix with a given length, excluding the main diagonal.
-#     """
-#     diagonals = []
+import numpy as np
+import sys
+import time
+import concurrent.futures
 
-#     # Get number of rows and columns in the matrix
-#     rows = len(matrix)
-#     cols = len(matrix[0])
+class Gomoku:
+    def __init__(self, size=15):
+        self.size = size
+        self.board = np.zeros((size, size), dtype=int)  # 0 = empty, 1 = player 1, 2 = player 2
+        self.zobrist_table = np.random.randint(2**64, size=(size, size, 3), dtype=np.uint64)  # 3 for empty, player 1, player 2
+        self.hash = np.uint64(0)
+        self.transposition_table = {}
+    
+    def make_move(self, x, y, player):
+        self.board[x, y] = player
+        self.hash ^= self.zobrist_table[x, y, player]
 
-#     for i in range(1, rows - length + 1):  # Start from index 1 to skip main diagonal
-#         diagonal = []
-#         for j in range(rows - i):
-#             diagonal.append(matrix[i + j][j])
-#         diagonals.append(diagonal)
+    def unmake_move(self, x, y, player):
+        self.board[x, y] = 0
+        self.hash ^= self.zobrist_table[x, y, player]
 
-#     # Iterate through diagonals starting from the top-right corner
-#     for i in range(cols - length + 1):
-#         diagonal = []
-#         for j in range(cols - i):
-#             diagonal.append(matrix[j][i + j])
-#         diagonals.append(diagonal)
+    def is_winner(self, player):
+        # Check for five in a row for the given player
+        pass  # Implement the win condition check
 
-#     # Iterate through diagonals starting from the top-left corner
-#     for i in range(1, rows - length + 1):  # Start from index 1 to skip main diagonal
-#         diagonal = []
-#         for j in range(rows - i):
-#             diagonal.append(matrix[rows - (i + j) - 1][j])
-#         diagonals.append(diagonal)
+def evaluate(gomoku):
+    # Implement an evaluation function for the current board state
+    score = 0
+    # Example: Simple heuristic
+    for row in range(gomoku.size):
+        for col in range(gomoku.size):
+            if gomoku.board[row, col] == 1:
+                score += 1
+            elif gomoku.board[row, col] == 2:
+                score -= 1
+    return score
 
-#     # Iterate through diagonals starting from the top-right corner
-#     for i in range(cols - length + 1):
-#         diagonal = []
-#         for j in range(cols - i):
-#             diagonal.append(matrix[rows - j - 1][i + j])
-#         diagonals.append(diagonal)
+def generate_moves(gomoku):
+    # Generate all possible moves
+    moves = []
+    for x in range(gomoku.size):
+        for y in range(gomoku.size):
+            if gomoku.board[x, y] == 0:
+                moves.append((x, y))
+    return moves
 
-#     return diagonals
+def alpha_beta(gomoku, depth, alpha, beta, maximizing_player):
+    # Check if the current board state is in the transposition table
+    if gomoku.hash in gomoku.transposition_table:
+        return gomoku.transposition_table[gomoku.hash]
 
+    if depth == 0 or gomoku.is_winner(1) or gomoku.is_winner(2):
+        evaluation = evaluate(gomoku)
+        gomoku.transposition_table[gomoku.hash] = evaluation
+        return evaluation
 
-# # Example usage
-# matrix = [
-#     [1, 2, 3, 4, 5],
-#     [6, 7, 8, 9, 10],
-#     [11, 12, 13, 14, 15],
-#     [16, 17, 18, 19, 20],
-#     [21, 22, 23, 24, 25]
-# ]
-
-# length = 5  # Length of diagonals
-# diagonals = get_diagonals(matrix, length)
-# print("Diagonals of length 6 in the matrix (excluding main diagonal):")
-# for diagonal in diagonals:
-#     print(diagonal)
-# Python3 program to find the next optimal move for a player
-player, opponent = 'x', 'o'
-
-# This function returns true if there are moves
-# remaining on the board. It returns false if
-# there are no moves left to play.
-
-
-def isMovesLeft(board):
-
-    for i in range(3):
-        for j in range(3):
-            if (board[i][j] == '_'):
-                return True
-    return False
-
-# This is the evaluation function as discussed
-# in the previous article ( http://goo.gl/sJgv68 )
-
-
-def evaluate(b):
-
-    # Checking for Rows for X or O victory.
-    for row in range(3):
-        if (b[row][0] == b[row][1] and b[row][1] == b[row][2]):
-            if (b[row][0] == player):
-                return 10
-            elif (b[row][0] == opponent):
-                return -10
-
-    # Checking for Columns for X or O victory.
-    for col in range(3):
-
-        if (b[0][col] == b[1][col] and b[1][col] == b[2][col]):
-
-            if (b[0][col] == player):
-                return 10
-            elif (b[0][col] == opponent):
-                return -10
-
-    # Checking for Diagonals for X or O victory.
-    if (b[0][0] == b[1][1] and b[1][1] == b[2][2]):
-
-        if (b[0][0] == player):
-            return 10
-        elif (b[0][0] == opponent):
-            return -10
-
-    if (b[0][2] == b[1][1] and b[1][1] == b[2][0]):
-
-        if (b[0][2] == player):
-            return 10
-        elif (b[0][2] == opponent):
-            return -10
-
-    # Else if none of them have won then return 0
-    return 0
-
-# This is the minimax function. It considers all
-# the possible ways the game can go and returns
-# the value of the board
-
-
-def minimax(board, depth, isMax):
-    score = evaluate(board)
-
-    # If Maximizer has won the game return his/her
-    # evaluated score
-    if (score == 10):
-        return score
-
-    # If Minimizer has won the game return his/her
-    # evaluated score
-    if (score == -10):
-        return score
-
-    # If there are no more moves and no winner then
-    # it is a tie
-    if (isMovesLeft(board) == False):
-        return 0
-
-    # If this maximizer's move
-    if (isMax):
-        best = -1000
-
-        # Traverse all cells
-        for i in range(3):
-            for j in range(3):
-
-                # Check if cell is empty
-                if (board[i][j] == '_'):
-
-                    # Make the move
-                    board[i][j] = player
-
-                    # Call minimax recursively and choose
-                    # the maximum value
-                    best = max(best, minimax(board,
-                                             depth + 1,
-                                             not isMax))
-
-                    # Undo the move
-                    board[i][j] = '_'
-        return best
-
-    # If this minimizer's move
+    if maximizing_player:
+        max_eval = -sys.maxsize
+        for move in generate_moves(gomoku):
+            gomoku.make_move(move[0], move[1], 1)
+            eval = alpha_beta(gomoku, depth-1, alpha, beta, False)
+            gomoku.unmake_move(move[0], move[1], 1)
+            max_eval = max(max_eval, eval)
+            alpha = max(alpha, eval)
+            if beta <= alpha:
+                break
+        gomoku.transposition_table[gomoku.hash] = max_eval
+        return max_eval
     else:
-        best = 1000
+        min_eval = sys.maxsize
+        for move in generate_moves(gomoku):
+            gomoku.make_move(move[0], move[1], 2)
+            eval = alpha_beta(gomoku, depth-1, alpha, beta, True)
+            gomoku.unmake_move(move[0], move[1], 2)
+            min_eval = min(min_eval, eval)
+            beta = min(beta, eval)
+            if beta <= alpha:
+                break
+        gomoku.transposition_table[gomoku.hash] = min_eval
+        return min_eval
 
-        # Traverse all cells
-        for i in range(3):
-            for j in range(3):
+def iterative_deepening(gomoku, max_depth, time_limit):
+    start_time = time.time()
+    best_move = None
 
-                # Check if cell is empty
-                if (board[i][j] == '_'):
+    for depth in range(1, max_depth + 1):
+        if time.time() - start_time > time_limit:
+            break
+        best_move = parallel_alpha_beta(gomoku, depth, -sys.maxsize, sys.maxsize, True, time_limit - (time.time() - start_time))
+    return best_move
 
-                    # Make the move
-                    board[i][j] = opponent
+def parallel_alpha_beta(gomoku, depth, alpha, beta, maximizing_player, time_limit):
+    start_time = time.time()
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = []
+        for move in generate_moves(gomoku):
+            if time.time() - start_time > time_limit:
+                break
+            gomoku.make_move(move[0], move[1], 1 if maximizing_player else 2)
+            futures.append(executor.submit(alpha_beta_parallel_wrapper, gomoku, depth-1, alpha, beta, not maximizing_player, gomoku.hash))
+            gomoku.unmake_move(move[0], move[1], 1 if maximizing_player else 2)
+        
+        best_score = -sys.maxsize if maximizing_player else sys.maxsize
+        best_move = None
+        for future in concurrent.futures.as_completed(futures):
+            move, score = future.result()
+            if (maximizing_player and score > best_score) or (not maximizing_player and score < best_score):
+                best_score = score
+                best_move = move
+    return best_move
 
-                    # Call minimax recursively and choose
-                    # the minimum value
-                    best = min(best, minimax(board, depth + 1, not isMax))
+def alpha_beta_parallel_wrapper(gomoku, depth, alpha, beta, maximizing_player, zobrist_hash):
+    # Clone the game state based on the hash
+    cloned_gomoku = Gomoku(gomoku.size)
+    cloned_gomoku.board = np.copy(gomoku.board)
+    cloned_gomoku.hash = zobrist_hash
+    cloned_gomoku.transposition_table = gomoku.transposition_table
 
-                    # Undo the move
-                    board[i][j] = '_'
-        return best
-
-# This will return the best possible move for the player
-
-
-def findBestMove(board):
-    bestVal = -1000
-    bestMove = (-1, -1)
-
-    # Traverse all cells, evaluate minimax function for
-    # all empty cells. And return the cell with optimal
-    # value.
-    for i in range(3):
-        for j in range(3):
-
-            # Check if cell is empty
-            if (board[i][j] == '_'):
-
-                # Make the move
-                board[i][j] = player
-
-                # compute evaluation function for this
-                # move.
-                moveVal = minimax(board, 0, False)
-
-                # Undo the move
-                board[i][j] = '_'
-
-                # If the value of the current move is
-                # more than the best value, then update
-                # best/
-                if (moveVal > bestVal):
-                    bestMove = (i, j)
-                    bestVal = moveVal
-
-    print("The value of the best Move is :", bestVal)
-    print()
-    return bestMove
-
-
-# Driver code
-board = [
-        ['x', 'o', 'x'],
-        ['x', 'o', 'o'],
-        ['_', '_', '_']
-]
-
-bestMove = findBestMove(board)
-
-print("The Optimal Move is :")
-print("ROW:", bestMove[0], " COL:", bestMove[1])
-
-# This code is contributed by divyesh072019
+    best_score = alpha_beta(cloned_gomoku, depth, alpha, beta, maximizing_player)
+    return (None, best_score)  # Return None for move, as it's not needed in this context
